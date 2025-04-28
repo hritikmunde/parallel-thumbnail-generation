@@ -1,0 +1,6 @@
+Flask==2.2.5
+Celery>=5.3.6
+redis==4.5.1
+Pillow>=10.0.0
+boto3==1.26.76
+python-dotenv==1.0.1

@@ -1,0 +1,25 @@
+# Use official Python base image
+FROM python:3.11-slim
+
+# Set working directory inside container
+WORKDIR /app
+
+# Copy only requirements.txt first (for faster Docker builds)
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the rest of your application code
+COPY app/ app/
+COPY .env .
+
+# Expose Flask app port
+EXPOSE 5000
+
+# Set environment variables inside container
+ENV FLASK_APP=app
+ENV FLASK_ENV=production
+
+# Command to run the Flask app
+CMD ["flask", "run", "--host=0.0.0.0", "--port=5000"]

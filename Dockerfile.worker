@@ -1,0 +1,22 @@
+# Use official Python base image
+FROM python:3.11-slim
+
+# Set working directory inside container
+WORKDIR /app
+
+# Copy requirements first (for caching and faster rebuilds)
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the app code
+COPY app/ app/
+COPY worker/ worker/
+COPY .env .
+
+# Set environment variables
+ENV CELERY_BROKER_URL=redis://redis:6379/0
+
+# Command to start the Celery worker
+CMD ["celery", "-A", "worker.worker.celery", "worker", "--loglevel=info"]

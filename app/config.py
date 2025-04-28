@@ -5,7 +5,7 @@ class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY', 'default_secret_key')
 
     # Redis broker URL for Celery
-    REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+    REDIS_URL = os.environ.get('REDIS_URL', 'redis://redis:6379/0')
 
     task_default_queue_type = "classic" 
 

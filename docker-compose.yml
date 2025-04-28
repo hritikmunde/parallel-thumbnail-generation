@@ -13,9 +13,11 @@ services:
       dockerfile: Dockerfile.api
     container_name: flask-api
     ports:
-      - "5001:5000"  # map host 5001 to container 5000
+      - "5001:5000"
     env_file:
       - .env
+    volumes:
+      - shared-tmp:/tmp  # 👈 Shared /tmp directory
     depends_on:
       - redis
   
@@ -26,5 +28,10 @@ services:
     container_name: celery-worker
     env_file:
       - .env
+    volumes:
+      - shared-tmp:/tmp  # 👈 Same shared /tmp
     depends_on:
       - redis
+
+volumes:
+  shared-tmp:  # 👈 Define the shared named volume

@@ -5,19 +5,10 @@ import os
 from .config import Config
 
 @celery.task()
-def resize_and_upload_image(file_path, filename):
+def resize_and_upload_image(filename):
     try:
-        # Open the original image
-        img = Image.open(file_path)
-        
-        # Resize the image
-        img.thumbnail(Config.THUMBNAIL_SIZE)
+        print(f"Starting resize for {filename}")
 
-        # Save resized image temporarily
-        resized_path = os.path.join('/tmp', f"resized-{filename}")
-        img.save(resized_path)
-
-        # Upload to S3
         s3 = boto3.client(
             's3',
             aws_access_key_id=Config.AWS_ACCESS_KEY_ID,
@@ -25,16 +16,32 @@ def resize_and_upload_image(file_path, filename):
             region_name=Config.AWS_REGION
         )
 
-        # Upload file
+        # 🔥 Download original image from uploads/
+        download_path = os.path.join('/tmp', filename)
+        s3.download_file(
+            Config.AWS_S3_BUCKET_NAME,
+            f"uploads/{filename}",
+            download_path
+        )
+
+        # 🔥 Open and resize
+        img = Image.open(download_path)
+        img.thumbnail(Config.THUMBNAIL_SIZE)
+
+        # 🔥 Save resized version
+        resized_path = os.path.join('/tmp', f"resized-{filename}")
+        img.save(resized_path)
+
+        # 🔥 Upload resized thumbnail to thumbnails/ folder
         s3.upload_file(
             resized_path,
             Config.AWS_S3_BUCKET_NAME,
-            f"thumbnails/{filename}",  # store inside 'thumbnails/' folder in bucket
+            f"thumbnails/{filename}",
             ExtraArgs={'ACL': 'private'}
         )
 
-        # Clean up temporary files
-        os.remove(file_path)
+        # Clean up
+        os.remove(download_path)
         os.remove(resized_path)
 
         print(f"Thumbnail {filename} uploaded successfully.")

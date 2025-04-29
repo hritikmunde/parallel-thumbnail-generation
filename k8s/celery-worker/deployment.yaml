@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: celery-worker
-          image: 123456789012.dkr.ecr.us-east-2.amazonaws.com/celery-worker:latest
+          image: 172287740255.dkr.ecr.us-east-2.amazonaws.com/celery-worker:latest
           command: ["celery", "-A", "worker.worker.celery", "worker", "--loglevel=info"]
           envFrom:
             - secretRef:

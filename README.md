@@ -1,213 +1,196 @@
+# Thumbnail Generator with Kubernetes Autoscaling
 
-# Thumbnail Generator with Horizontal Pod Autoscaling (HPA) on Kubernetes
-
-## Overview
-
-This project demonstrates a **cloud-native, scalable image processing system** designed to evaluate **Kubernetes Horizontal Pod Autoscaling (HPA)** efficiency.
-
-We built:
-
-- A **Flask** API server for image uploads.
-- A **Celery** distributed worker system.
-- A **Redis** queue.
-- Persistent storage on **AWS S3**.
-- Deployment automated via **Terraform** and run on **AWS EKS (Elastic Kubernetes Service)**.
-
-We simulate **dynamic workloads** and study system scaling behavior.
+This project is a production-style, cloud-native thumbnail generator system that uses Flask, Celery, and Redis to process image uploads and generate thumbnails in parallel. The system is fully containerized, deployed on AWS EKS using Terraform, and evaluated using Kubernetes Horizontal Pod Autoscaler (HPA) with both CPU and custom metrics (Redis queue depth). The monitoring stack includes Prometheus and Grafana.
 
 ---
 
-# System Architecture
+## 📦 Technologies Used
 
-- **User** uploads image via Flask API
-- **Flask API** saves file to `/tmp`, uploads to S3 `uploads/` folder
-- **Filename** pushed to **Redis** queue
-- **Celery worker**:
-  - Downloads image from S3
-  - Resizes it
-  - Uploads resized image to S3 `thumbnails/` folder
-  - Deletes original upload after resizing
-
----
-
-# Technologies Used
-
-- **Python** (Flask, Celery, Boto3)
-- **Redis** (message broker)
-- **Docker** (containerization)
-- **AWS S3** (object storage)
-- **AWS ECR** (container registry)
-- **AWS EKS** (Kubernetes cluster)
-- **Terraform** (Infrastructure as Code)
-- **Kubernetes HPA** (Horizontal Pod Autoscaling)
+- **Flask**: Python web server for image uploads
+- **Celery**: Distributed task queue for parallel image resizing
+- **Redis**: Broker between Flask and Celery
+- **AWS S3**: Object storage for uploaded and processed images
+- **Docker & ECR**: Containerization and registry
+- **Kubernetes & EKS**: Deployment and orchestration
+- **Terraform**: Infrastructure-as-Code for provisioning
+- **Prometheus + Grafana**: Monitoring and dashboarding
 
 ---
 
-# Local Setup (Docker Compose)
+## 🚀 How It Works
 
-1. **Create `.env` file:**
-
-   ```bash
-   AWS_ACCESS_KEY_ID=your_access_key
-   AWS_SECRET_ACCESS_KEY=your_secret_key
-   AWS_S3_BUCKET_NAME=your_bucket_name
-   AWS_REGION=us-east-2
-   SECRET_KEY=your_secret_key
-   REDIS_URL=redis://redis:6379/0
-   ```
-
-2. **Docker Compose:**
-
-   ```bash
-   docker-compose up --build
-   ```
-
-3. **Test API locally:**
-
-   ```bash
-   curl -X POST http://localhost:5000/upload -F "file=@/path/to/your/image.jpg"
-   ```
+1. Users upload images through a Flask endpoint.
+2. Flask uploads the original image to S3 and enqueues the filename to Redis.
+3. Celery workers pick up the task, download the image, resize it, upload the thumbnail, and delete the original from S3.
+4. The number of Celery workers scales dynamically using Kubernetes HPA (CPU-based or custom metrics).
+5. Metrics are collected by Prometheus and visualized in Grafana dashboards.
 
 ---
 
-# Docker Image Build and Push (AWS ECR)
+## ⚙️ Prerequisites
 
-1. **Authenticate ECR:**
-
-   ```bash
-   aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin <your_account_id>.dkr.ecr.us-east-2.amazonaws.com
-   ```
-
-2. **Build and push Flask API:**
-
-   ```bash
-   docker buildx build --platform linux/amd64 -t flask-api .
-   docker tag flask-api:latest <your_account_id>.dkr.ecr.us-east-2.amazonaws.com/flask-api:latest
-   docker push <your_account_id>.dkr.ecr.us-east-2.amazonaws.com/flask-api:latest
-   ```
-
-3. **Build and push Celery Worker:**
-
-   ```bash
-   docker buildx build --platform linux/amd64 -f Dockerfile.worker -t celery-worker .
-   docker tag celery-worker:latest <your_account_id>.dkr.ecr.us-east-2.amazonaws.com/celery-worker:latest
-   docker push <your_account_id>.dkr.ecr.us-east-2.amazonaws.com/celery-worker:latest
-   ```
+- AWS CLI configured with ECR, EKS, and IAM permissions
+- Terraform installed
+- Helm installed
+- Docker installed with buildx support
+- `kubectl` configured for your EKS cluster
 
 ---
 
-# Kubernetes Setup
+## 📄 `.gitignore` (Key Entries)
 
-1. **Provision Cluster with Terraform** (example steps):
-
-   - Create VPC, Subnets, Route Tables
-   - Create EKS Cluster + Node Groups
-   - Attach IAM roles (ECR, S3 Access)
-
-2. **Kubernetes YAMLs** (`k8s/` folder):
-
-   - `namespace.yaml` (create `thumbnail-generator` namespace)
-   - `redis-deployment.yaml`
-   - `redis-service.yaml`
-   - `flask-api-deployment.yaml`
-   - `flask-api-service.yaml` (LoadBalancer)
-   - `celery-worker-deployment.yaml`
-   - `secrets.yaml` (AWS keys, REDIS_URL)
-   - `hpa.yaml` (for Celery autoscaling)
-
-3. **Apply YAMLs:**
-
-   ```bash
-   kubectl apply -f k8s/namespace.yaml
-   kubectl apply -f k8s/secrets.yaml
-   kubectl apply -f k8s/redis-deployment.yaml
-   kubectl apply -f k8s/redis-service.yaml
-   kubectl apply -f k8s/flask-api-deployment.yaml
-   kubectl apply -f k8s/flask-api-service.yaml
-   kubectl apply -f k8s/celery-worker-deployment.yaml
-   kubectl apply -f k8s/hpa.yaml
-   ```
-
-4. **Find LoadBalancer IP:**
-
-   ```bash
-   kubectl get svc -n thumbnail-generator
-   ```
+```
+*.pyc
+__pycache__/
+.env
+*.env
+*.log
+*.pem
+*.zip
+__pycache__/
+.DS_Store
+.envrc
+*.db
+*.sqlite3
+terraform.tfstate*
+.terraform/
+.idea/
+.vscode/
+k8s/secrets.yaml
+```
 
 ---
 
-# Testing on Kubernetes
+## 🛠️ Usage Instructions
 
-1. **Upload an image:**
+### 1. Clone the Repo and Set Up Environment
+```bash
+git clone <repo-url>
+cd thumbnail-generator
+```
 
-   ```bash
-   curl -X POST http://<LoadBalancer_DNS>:5000/upload -F "file=@/path/to/image.jpg"
-   ```
+### 2. Set Up Terraform Infrastructure
+```bash
+cd terraform
+terraform init
+terraform apply
+```
 
-2. **Check S3 Bucket:**
+This will provision the VPC, EKS cluster, IAM roles, and output the EKS kubeconfig.
 
-   - You should see the resized image under `thumbnails/`
-   - No original file remains (auto-deletion after resize)
+### 3. Deploy the Complete System
+Run the automation script to build, push, and deploy everything:
+```bash
+chmod +x setup_pipeline.sh
+./setup_pipeline.sh
+```
 
-3. **Monitor HPA:**
+This script will:
+- Build Docker images for Flask and Celery
+- Push to AWS ECR
+- Apply Kubernetes manifests for Redis, Flask, Celery, HPA
+- Set up Prometheus and Grafana with Helm
+- Expose services via LoadBalancer and print their URLs
 
-   ```bash
-   kubectl get hpa -n thumbnail-generator
-   ```
+### 4. Load Testing
+```bash
+chmod +x test.bash
+./test.bash
+```
 
-4. **Debugging:**
-
-   ```bash
-   kubectl logs deployment/flask-api -n thumbnail-generator
-   kubectl logs deployment/celery-worker -n thumbnail-generator
-   ```
-
-5. **Exec into Pods if needed:**
-
-   ```bash
-   kubectl exec -it <pod-name> -n thumbnail-generator -- /bin/sh
-   ```
-
----
-
-# Key Improvements Done
-
-- Parallel task processing with Celery
-- Redis Queue with retry behavior
-- S3 uploads and cleaned up originals
-- Multi-architecture Docker builds for AWS
-- Complete Infrastructure as Code (Terraform)
-- Horizontal Pod Autoscaling (CPU-based for now)
-- Debugging and Monitoring with Kubernetes tools
+This runs a batch of concurrent uploads (configurable) to test scaling and stress the pipeline.
 
 ---
 
-# Future Improvements
+## 📊 Monitoring
 
-- Add Prometheus Adapter to autoscale based on **Redis Queue Depth**.
-- Optimize Celery concurrency settings.
-- Add Grafana dashboards for live system visualization.
-- Introduce CloudWatch alarms for cost monitoring.
-
----
-
-# Authors
-
-- Aditya Dhumal
-- Anish Wadkar
-- Hritik Munde
-- Amey Parle
+Access Grafana at the printed LoadBalancer URL (default port 3000). Use dashboards to view:
+- HPA replica scaling
+- Redis queue depth
+- CPU usage
+- Upload/resize rates
 
 ---
 
-# References
+## 📥 API Endpoint
 
-- Kubernetes Documentation: [https://kubernetes.io/docs/](https://kubernetes.io/docs/)
-- Terraform Registry: [https://registry.terraform.io/](https://registry.terraform.io/)
-- AWS Documentation: [https://aws.amazon.com/documentation/](https://aws.amazon.com/documentation/)
+Upload an image:
+```bash
+curl -X POST <FLASK_LB_URL>/upload -F "file=@test.jpg"
+```
 
 ---
 
-# Final Note
+## 👨‍💻 Team Contributions
 
-This project highlights cloud-native principles of **dynamic autoscaling**, **parallel processing**, and **fault-tolerant distributed systems**.
+| Name | Contributions |
+|------|---------------|
+| Aditya Dhumal | Prometheus, provisioning, benchmarking |
+| Anish Wadkar | Flask app, Redis integration |
+| Hritik Munde | Load testing, HPA tuning, Terraform |
+| Amey Parle | Grafana, monitoring dashboards, analysis |
+
+---
+
+## 🧪 Future Work
+
+- Integrate Redis queue metrics for custom HPA scaling
+- Enable persistent queues (e.g., Kafka/RQ)
+- Auto-retry failed S3 uploads
+- Add CloudWatch-based cost insights
+- Expand monitoring dashboards
+
+---
+
+## 📂 File Structure
+
+```
+.
+├── flask-app/
+├── celery-worker/
+├── terraform/
+├── k8s/
+├── test.bash
+├── setup_pipeline.sh
+└── README.md
+```
+
+---
+
+## 🧹 Cleanup
+
+Run:
+```bash
+terraform destroy
+```
+
+Delete ECR images, S3 buckets, ENIs manually if Terraform fails due to dependencies.
+
+---
+
+## 📌 Notes
+
+- Use `kubectl get hpa` and `kubectl top pods` to manually inspect scaling.
+- For debugging, check logs:
+```bash
+kubectl logs deployment/flask-api -n thumbnail-generator
+kubectl logs deployment/celery-worker -n thumbnail-generator
+```
+
+---
+
+## 📸 Screenshots
+
+Include architecture diagrams and Grafana dashboards here if submitting for demo or reports.
+
+---
+
+## 🔒 Secrets
+
+Store secrets like AWS keys in Kubernetes secrets (avoid committing `.env` or `secrets.yaml`).
+
+---
+
+## 🏁 Conclusion
+
+This project demonstrates real-world HPA tuning, parallel processing, and observability in Kubernetes using a minimal yet scalable image processing pipeline.
